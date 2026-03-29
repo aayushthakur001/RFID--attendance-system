@@ -10,6 +10,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
 import { setAuthToken } from "./api/client";
 import FacultyLayout from "./components/FacultyLayout";
+import toast, { Toaster } from "react-hot-toast";
 
 function App() {
   const { auth } = useAuth();
@@ -22,51 +23,82 @@ function App() {
   }, []);
 
   return (
-    <Routes>
-
-      {/* LOGIN */}
-      <Route path="/login" element={<LoginPage />} />
-
-      {/* STUDENT */}
-      <Route
-        path="/student"
-        element={
-          <ProtectedRoute role="student">
-            <StudentDashboard />
-          </ProtectedRoute>
-        }
+    <>
+      {/* 🔥 GLOBAL TOAST */}
+      <Toaster
+        position="bottom-right"
+        reverseOrder={false}
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: "10px",
+            background: "#1e293b",
+            color: "#fff",
+            fontSize: "14px",
+          },
+          success: {
+            style: {
+              background: "#16a34a",
+            },
+          },
+          error: {
+            style: {
+              background: "#dc2626",
+            },
+          },
+        }}
       />
 
-      {/* FACULTY PARENT */}
-      <Route path="/faculty" element={
-  <ProtectedRoute role="faculty">
-    <FacultyLayout />
-  </ProtectedRoute>
-}>
-  <Route index element={<Navigate to="dashboard" />} />
-  <Route path="dashboard" element={<Dashboard />} />
-  <Route path="students" element={<Students />} />
-  <Route path="attendance" element={<Attendance />} />
-  <Route path="analytics" element={<Analytics />} />
-</Route>
+      {/* ROUTES */}
+      <Routes>
 
-      {/* GLOBAL REDIRECT */}
-      <Route
-        path="*"
-        element={
-          <Navigate
-            to={
-              auth?.user?.role === "faculty"
-                ? "/faculty/dashboard"
-                : auth?.user?.role === "student"
-                ? "/student"
-                : "/login"
-            }
-          />
-        }
-      />
+        {/* LOGIN */}
+        <Route path="/login" element={<LoginPage />} />
 
-    </Routes>
+        {/* STUDENT */}
+        <Route
+          path="/student"
+          element={
+            <ProtectedRoute role="student">
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* FACULTY */}
+        <Route
+          path="/faculty"
+          element={
+            <ProtectedRoute role="faculty">
+              <FacultyLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="students" element={<Students />} />
+          <Route path="attendance" element={<Attendance />} />
+          <Route path="analytics" element={<Analytics />} />
+        </Route>
+
+        {/* REDIRECT */}
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={
+                auth?.user?.role === "faculty"
+                  ? "/faculty/dashboard"
+                  : auth?.user?.role === "student"
+                  ? "/student"
+                  : "/login"
+              }
+            />
+          }
+        />
+
+      </Routes>
+    </>
   );
 }
 

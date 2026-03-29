@@ -2,25 +2,24 @@ import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { FiSearch } from "react-icons/fi";
+import toast from "react-hot-toast"; // 🔥 ADDED
 
 const Attendance = () => {
   const { auth } = useAuth();
 
   const [attendance, setAttendance] = useState([]);
   const [dateFilter, setDateFilter] = useState("");
-  const [filterType, setFilterType] = useState("day"); // 🔥 NEW
+  const [filterType, setFilterType] = useState("day");
   const [search, setSearch] = useState("");
-  const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
+  const recordsPerPage = 10;
+
+  // 🔥 LOAD DATA
   const loadData = async () => {
     try {
-      let endpoint = "/attendance";
-
-      // if (dateFilter) {
-      //   endpoint += `?date=${dateFilter}&type=${filterType}`;
-      // }
-
-      endpoint += `?type=${filterType}`;
+      let endpoint = `/attendance?type=${filterType}`;
 
       if (dateFilter) {
         endpoint += `&date=${dateFilter}`;
@@ -30,14 +29,15 @@ const Attendance = () => {
       setAttendance(res.data);
 
     } catch {
-      setError("Failed to load attendance");
+      toast.error("Failed to load attendance"); // 🔥 TOAST
     }
   };
 
   useEffect(() => {
     if (auth?.token) loadData();
-  }, [auth, dateFilter, filterType]); // 🔥 UPDATED
+  }, [auth, dateFilter, filterType]);
 
+  // 🔥 EXPORT CSV
   const handleExport = async () => {
     try {
       let endpoint = "/attendance/export";
@@ -54,48 +54,67 @@ const Attendance = () => {
       link.download = `attendance-${filterType}-${dateFilter || "all"}.csv`;
       link.click();
 
+      toast.success("Export started 📥"); // 🔥 SUCCESS TOAST
+
     } catch {
-      setError("Export failed");
+      toast.error("Export failed");
     }
   };
 
-  // 🔥 FILTERED DATA (SEARCH)
+  // 🔥 FILTERED DATA
   const filteredData = attendance.filter((item) =>
     item.studentId?.name.toLowerCase().includes(search.toLowerCase()) ||
     item.studentId?.rollNumber.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredData.length / recordsPerPage);
+
+  const startIndex = (currentPage - 1) * recordsPerPage;
+  const currentData = filteredData.slice(
+    startIndex,
+    startIndex + recordsPerPage
+  );
+
   // 🔥 STATS
   const total = filteredData.length;
-  const lastScan = filteredData[0]?.studentId?.name || "--";
+  const lastScan = filteredData[0]?.studentId?.name || null;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterType, dateFilter]);
 
   return (
     <main className="container">
 
       {/* 🔥 STATS */}
       <div className="stats-grid">
-        <div className="card-base card-attendance">
+
+        <div className="ui-kpi kpi-purple">
           <p>Total Records</p>
-          <h3>{total}</h3>
+          <h2>{total}</h2>
         </div>
 
-        <div className="card-base card-attendance blue">
+        <div className="ui-kpi kpi-blue">
           <p>Last Scan</p>
-          <h3>{lastScan}</h3>
+          {lastScan ? (
+            <h2>{lastScan}</h2>
+          ) : (
+            <h2 className="empty-text">No Scan Yet</h2>
+          )}
         </div>
 
-        <div className="card-base card-attendance green">
+        <div className="ui-kpi kpi-green">
           <p>Status</p>
-          <h3>
+          <h2 className="live-status">
             <span className="live-dot"></span> Live
-          </h3>
+          </h2>
         </div>
+
       </div>
 
       {/* 🔥 FILTER TOOLBAR */}
-      <div className="card-base toolbar">
+      <div className="ui-card ui-card-filter toolbar toolbar--full">
 
-        {/* FILTER TYPE */}
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
@@ -105,32 +124,32 @@ const Attendance = () => {
           <option value="month">🗓 Month</option>
         </select>
 
-        {/* DATE */}
         <input
           type="date"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
         />
 
-        {/* SEARCH */}
-        <input
-          type="text"
-          placeholder="Search student..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="search-box">
+          <FiSearch className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search student..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-        {/* EXPORT */}
-        <button className="primary-btn" onClick={handleExport}>
-          ⬇ Export CSV
+        <button className="btn-primary" onClick={handleExport}>
+          Export CSV
         </button>
 
       </div>
 
-      {/* TABLE */}
-      <section className="card-base">
+      {/* 🔥 TABLE */}
+      <section className="ui-card ui-card-table">
         <div className="table-wrap">
-          <table className="table">
+          <table className="ui-table">
             <thead>
               <tr>
                 <th>Name</th>
@@ -142,14 +161,14 @@ const Attendance = () => {
             </thead>
 
             <tbody>
-              {filteredData.map((item) => (
+              {currentData.map((item) => (
                 <tr key={item._id}>
                   <td>{item.studentId?.name}</td>
                   <td>{item.studentId?.rollNumber}</td>
                   <td>{item.date}</td>
                   <td>{dayjs(item.timestamp).format("HH:mm:ss")}</td>
                   <td>
-                    <span className="status present">Present</span>
+                    <span className="badge-present">Present</span>
                   </td>
                 </tr>
               ))}
@@ -157,8 +176,29 @@ const Attendance = () => {
           </table>
 
           {filteredData.length === 0 && (
-            <p className="empty">📭 No records found</p>
+            <p className="empty-state">No records found</p>
           )}
+        </div>
+
+        {/* 🔥 PAGINATION */}
+        <div className="pagination">
+
+          <button
+            onClick={() => setCurrentPage((p) => p - 1)}
+            disabled={currentPage === 1}
+          >
+            ⬅ Prev
+          </button>
+
+          <span>Page {currentPage} of {totalPages}</span>
+
+          <button
+            onClick={() => setCurrentPage((p) => p + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next ➡
+          </button>
+
         </div>
       </section>
 
@@ -167,268 +207,3 @@ const Attendance = () => {
 };
 
 export default Attendance;
-
-// import { useEffect, useState } from "react";
-// import dayjs from "dayjs";
-// import api from "../../api/client";
-// import { useAuth } from "../../context/AuthContext";
-
-// const Attendance = () => {
-//   const { auth } = useAuth();
-
-//   const [attendance, setAttendance] = useState([]);
-//   const [dateFilter, setDateFilter] = useState("");
-//   const [search, setSearch] = useState("");
-//   const [error, setError] = useState("");
-
-//   const loadData = async (date = "") => {
-//     try {
-//       const endpoint = date ? `/attendance?date=${date}` : "/attendance";
-//       const res = await api.get(endpoint);
-//       setAttendance(res.data);
-//     } catch {
-//       setError("Failed to load attendance");
-//     }
-//   };
-
-//   useEffect(() => {
-//     if (auth?.token) loadData();
-//   }, [auth]);
-
-//   const handleDateFilter = (e) => {
-//     const value = e.target.value;
-//     setDateFilter(value);
-//     loadData(value);
-//   };
-
-//   const handleExport = async () => {
-//     try {
-//       const endpoint = dateFilter
-//         ? `/attendance/export?date=${dateFilter}`
-//         : "/attendance/export";
-
-//       const res = await api.get(endpoint, { responseType: "blob" });
-
-//       const blobUrl = URL.createObjectURL(new Blob([res.data]));
-//       const link = document.createElement("a");
-//       link.href = blobUrl;
-//       link.download = `attendance-${dateFilter || "all"}.csv`;
-//       link.click();
-//     } catch {
-//       setError("Export failed");
-//     }
-//   };
-
-//   // 🔥 FILTERED DATA
-//   const filteredData = attendance.filter((item) =>
-//     item.studentId?.name.toLowerCase().includes(search.toLowerCase()) ||
-//     item.studentId?.rollNumber.toLowerCase().includes(search.toLowerCase())
-//   );
-
-//   // 🔥 STATS
-//   const total = filteredData.length;
-//   const lastScan = filteredData[0]?.studentId?.name || "--";
-
-//   return (
-//     <main className="container">
-
-//       {/* HEADER */}
-
-
-//       {/* 🔥 STATS */}
-//       <div className="attendance-stats">
-//         <div className="stat-card">
-//           <p>Total Records</p>
-//           <h3>{total}</h3>
-//         </div>
-
-//         <div className="stat-card blue">
-//           <p>Last Scan</p>
-//           <h3>{lastScan}</h3>
-//         </div>
-
-//         <div className="stat-card green">
-//           <p>Status</p>
-//           <h3>
-//             <span className="live-dot"></span> Live
-//           </h3>
-//         </div>
-//       </div>
-
-//       {/* FILTER + SEARCH + EXPORT */}
-//       <div className="card toolbar">
-
-//         <input
-//           type="date"
-//           value={dateFilter}
-//           onChange={handleDateFilter}
-//         />
-
-//         <input
-//           type="text"
-//           placeholder="Search student..."
-//           value={search}
-//           onChange={(e) => setSearch(e.target.value)}
-//         />
-
-//         <button className="primary-btn" onClick={handleExport}>
-//           ⬇ Export CSV
-//         </button>
-
-//       </div>
-
-//       {/* TABLE */}
-//       <section className="card">
-//         <div className="table-wrap">
-//           <table className="table">
-//             <thead>
-//               <tr>
-//                 <th>Name</th>
-//                 <th>Roll</th>
-//                 <th>Date</th>
-//                 <th>Time</th>
-//                 <th>Status</th>
-//               </tr>
-//             </thead>
-
-//             <tbody>
-//               {filteredData.map((item) => (
-//                 <tr key={item._id}>
-//                   <td>{item.studentId?.name}</td>
-//                   <td>{item.studentId?.rollNumber}</td>
-//                   <td>{item.date}</td>
-//                   <td>{dayjs(item.timestamp).format("HH:mm:ss")}</td>
-//                   <td>
-//                     <span className="status present">Present</span>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-
-//           {filteredData.length === 0 && (
-//             <p className="empty">📭 No records found</p>
-//           )}
-//         </div>
-//       </section>
-
-//     </main>
-//   );
-// };
-
-// export default Attendance;
-
-// import { useEffect, useState } from "react";
-// import dayjs from "dayjs";
-// import api from "../../api/client";
-// import { useAuth } from "../../context/AuthContext";
-
-// const Attendance = () => {
-//   const { auth } = useAuth();
-
-//   const [attendance, setAttendance] = useState([]);
-//   const [dateFilter, setDateFilter] = useState("");
-//   const [error, setError] = useState("");
-
-//   const loadData = async (date = "") => {
-//     try {
-//       const endpoint = date ? `/attendance?date=${date}` : "/attendance";
-//       const res = await api.get(endpoint);
-//       setAttendance(res.data);
-//     } catch {
-//       setError("Failed to load attendance");
-//     }
-//   };
-
-//   useEffect(() => {
-//     if (auth?.token) loadData();
-//   }, [auth]);
-
-//   const handleDateFilter = async (e) => {
-//     const value = e.target.value;
-//     setDateFilter(value);
-//     loadData(value);
-//   };
-
-//   const handleExport = async () => {
-//     try {
-//       const endpoint = dateFilter
-//         ? `/attendance/export?date=${dateFilter}`
-//         : "/attendance/export";
-
-//       const res = await api.get(endpoint, { responseType: "blob" });
-
-//       const blobUrl = URL.createObjectURL(new Blob([res.data]));
-//       const link = document.createElement("a");
-//       link.href = blobUrl;
-//       link.download = `attendance-${dateFilter || "all"}.csv`;
-//       link.click();
-//     } catch {
-//       setError("Export failed");
-//     }
-//   };
-
-//   return (
-//     <>
-//       <main className="container">
-
-//         {/* HEADER */}
-//         <div className="card">
-//           <h2>📅 Attendance Records</h2>
-//           <p>View and export attendance data</p>
-//           {error && <p className="error">{error}</p>}
-//         </div>
-
-//         {/* FILTER + EXPORT */}
-//         <div className="card" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-//           <input
-//             type="date"
-//             value={dateFilter}
-//             onChange={handleDateFilter}
-//           />
-
-//           <button onClick={handleExport}>
-//             ⬇ Export CSV
-//           </button>
-//         </div>
-
-//         {/* TABLE */}
-//         <section className="card">
-//           <div className="table-wrap">
-//             <table className="table">
-//               <thead>
-//                 <tr>
-//                   <th>Name</th>
-//                   <th>Roll</th>
-//                   <th>Date</th>
-//                   <th>Time</th>
-//                 </tr>
-//               </thead>
-
-//               <tbody>
-//                 {attendance.map((item) => (
-//                   <tr key={item._id}>
-//                     <td>{item.studentId?.name}</td>
-//                     <td>{item.studentId?.rollNumber}</td>
-//                     <td>{item.date}</td>
-//                     <td>{dayjs(item.timestamp).format("HH:mm:ss")}</td>
-//                   </tr>
-//                 ))}
-//               </tbody>
-
-//             </table>
-
-//             {attendance.length === 0 && (
-//               <p style={{ textAlign: "center", marginTop: 10 }}>
-//                 📭 No records found
-//               </p>
-//             )}
-//           </div>
-//         </section>
-
-//       </main>
-//     </>
-//   );
-// };
-
-// export default Attendance;

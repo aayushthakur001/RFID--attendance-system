@@ -1,83 +1,70 @@
-// // import { useNavigate } from "react-router-dom";
-// // import { useAuth } from "../context/AuthContext";
-// // import { setAuthToken } from "../api/client";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { setAuthToken } from "../api/client";
 
-// // const Navbar = () => {
-// //   const navigate = useNavigate();
-// //   const { auth, logout } = useAuth();
+// 🔥 ICONS
+import { FiRefreshCw, FiLogOut, FiUser } from "react-icons/fi";
 
-// //   const handleLogout = () => {
-// //     logout();
-// //     setAuthToken(null);
-// //     navigate("/login");
-// //   };
+const FacultyTopbar = ({ onRefresh }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { auth, logout } = useAuth();
 
-// //   return (
-// //     <header className="topbar">
-// //       <div className="topbar-inner">
-// //         <strong>RFID Attendance Management</strong>
-// //         <div>
-// //           <span style={{ marginRight: 10 }}>{auth?.user?.name}</span>
-// //           <span className="badge" style={{ marginRight: 10 }}>
-// //             {auth?.user?.role}
-// //           </span>
-// //           <button onClick={handleLogout}>Logout</button>
-// //         </div>
-// //       </div>
-// //     </header>
-// //   );
-// // };
+  const handleLogout = () => {
+    logout();
+    setAuthToken(null);
+    navigate("/login");
+  };
 
-// // export default Navbar;
+  // 🔥 Dynamic Title
+  const getTitle = () => {
+    if (location.pathname.includes("students")) return "Students";
+    if (location.pathname.includes("attendance")) return "Attendance";
+    if (location.pathname.includes("analytics")) return "Analytics";
+    return "Dashboard";
+  };
 
-// import { useNavigate } from "react-router-dom";
-// import { useAuth } from "../context/AuthContext";
-// import { setAuthToken } from "../api/client";
+  return (
+    <header className="topbar">
 
-// const Navbar = () => {
-//   const navigate = useNavigate();
-//   const { auth, logout } = useAuth();
+      {/* LEFT */}
+      <h2 className="page-title">{getTitle()}</h2>
 
-//   const handleLogout = () => {
-//     logout();
-//     setAuthToken(null);
-//     navigate("/login");
-//   };
+      {/* RIGHT */}
+      <div className="topbar-right">
 
-//   return (
-//     <header className="topbar">
-//       <div className="topbar-inner">
+        {/* ACTION GROUP */}
+        <div className="topbar-actions">
 
-//         {/* LEFT */}
-//         <div className="topbar-left">
-//           <h2>RFID Attendance</h2>
-//           <p>Welcome back 👋</p>
-//         </div>
+          {/* 🔄 REFRESH */}
+          {onRefresh && (
+            <button className="icon-btn" onClick={onRefresh}>
+              <FiRefreshCw size={16} />
+            </button>
+          )}
 
-//         {/* RIGHT */}
-//         <div className="topbar-right">
+          {/* USER */}
+          <div className="user-chip">
+            <div className="avatar">
+              {auth?.user?.name?.charAt(0).toUpperCase()}
+            </div>
+            <span>
+              <FiUser style={{ marginRight: "4px" }} />
+              {auth?.user?.name}
+            </span>
+          </div>
 
-//           {/* USER INFO */}
-//           <div className="user-info">
-//             <div className="avatar">
-//               {auth?.user?.name?.charAt(0).toUpperCase()}
-//             </div>
+        </div>
 
-//             <div className="user-text">
-//               <span className="username">{auth?.user?.name}</span>
-//               <span className="role">{auth?.user?.role}</span>
-//             </div>
-//           </div>
+        {/* LOGOUT */}
+        <button className="logout-btn" onClick={handleLogout}>
+          <FiLogOut style={{ marginRight: "6px" }} />
+          Logout
+        </button>
 
-//           {/* LOGOUT */}
-//           <button className="logout-btn" onClick={handleLogout}>
-//             Logout
-//           </button>
+      </div>
+    </header>
+  );
+};
 
-//         </div>
-//       </div>
-//     </header>
-//   );
-// };
-
-// export default Navbar;
+export default FacultyTopbar;
