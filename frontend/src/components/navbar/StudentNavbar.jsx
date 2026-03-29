@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { setAuthToken } from "../../api/client";
 import { FiLogOut, FiKey, FiX } from "react-icons/fi";
 import toast from "react-hot-toast";
+import api from "../../api/client";
 
 const StudentNavbar = () => {
   const navigate = useNavigate();
@@ -37,31 +38,44 @@ const StudentNavbar = () => {
   };
 
   // 🔥 PASSWORD UPDATE
-  const handlePasswordUpdate = () => {
+  const handlePasswordUpdate = async () => {
     if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
       return toast.error("All fields are required");
     }
-
+  
     if (form.newPassword !== form.confirmPassword) {
       return toast.error("Passwords do not match");
     }
-
+  
     if (form.newPassword.length < 6) {
       return toast.error("Password must be at least 6 characters");
     }
-
-    // 👉 API CALL HERE
-
-    toast.success("Password updated successfully 🔐");
-
-    setShowPasswordModal(false);
-
-    // 🔥 reset form after update
-    setForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+  
+    try {
+      const res = await api.put("/students/change-password", {
+        oldPassword: form.currentPassword,   // 🔥 match backend
+        newPassword: form.newPassword,
+      });
+  
+      toast.success(res.data.message);
+  
+      setShowPasswordModal(false);
+  
+      setForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+  
+    } catch (err) {
+      console.error(err);
+  
+      const message =
+        err.response?.data?.message ||
+        "Failed to update password";
+  
+      toast.error(message);
+    }
   };
 
   return (

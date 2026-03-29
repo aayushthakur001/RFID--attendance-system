@@ -14,7 +14,7 @@ const Students = () => {
   const [editingId, setEditingId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
-
+  const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("none");
   const [currentPage, setCurrentPage] = useState(1);
@@ -122,28 +122,26 @@ const Students = () => {
   const handleCreateStudent = async (e) => {
     e.preventDefault();
 
-
     try {
+      setSubmitting(true);
+
       const payload = { ...form };
 
+      // ❌ remove password if empty (edit mode)
       if (!payload.password) delete payload.password;
 
-
+      let res;
 
       if (editingId) {
-        const res = await api.put(`/students/${editingId}`, payload);
-
-        toast.success("Student updated successfully ✏️");
-
-        setEditingId(null);
+        res = await api.put(`/students/${editingId}`, payload);
       } else {
-        const res = await api.post("/students", payload);
-        toast.success("Student added successfully 🎉");
-
-
+        res = await api.post("/students", payload);
       }
-    
 
+      // ✅ Dynamic success message from backend
+      toast.success(res.data.message);
+
+      // 🔄 Reset form
       setForm({
         name: "",
         rollNumber: "",
@@ -153,14 +151,23 @@ const Students = () => {
       });
 
       setShowModal(false);
+      setEditingId(null);
 
-      await loadData(); // 🔥 wait for refresh
+      await loadData();
     } catch (err) {
       console.error("ERROR:", err.response?.data || err.message);
-      toast.error("Operation failed");
+
+      // ✅ Show real backend error
+      const message =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Something went wrong";
+
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
   };
-
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this student?")) return;
 
@@ -169,16 +176,19 @@ const Students = () => {
       toast.success("Student deleted 🗑️");
       await loadData();
     } catch {
-      toast.error("Failed to delete");    }
+      toast.error("Failed to delete");
+    }
   };
 
   const handleEdit = (student) => {
+    if (!student) return;
+
     setForm({
-      name: student.name,
-      rollNumber: student.rollNumber,
-      rfid_uid: student.rfid_uid,
+      name: student.name || "",
+      rollNumber: student.rollNumber || "",
+      rfid_uid: student.rfid_uid || "",
       email: student.userId?.email || "",
-      password: "",
+      password: "", // keep empty (not used by admin)
     });
 
     setEditingId(student._id);
@@ -343,7 +353,6 @@ const Students = () => {
         </div>
       </div>
 
-      {/* MODAL */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
@@ -354,7 +363,7 @@ const Students = () => {
                 className="close-btn"
                 onClick={() => {
                   setShowModal(false);
-                  setEditingId(null); // 🔥 reset on close
+                  setEditingId(null);
                 }}
               >
                 ✕
@@ -377,8 +386,6 @@ const Students = () => {
                 name="rollNumber"
                 value={form.rollNumber}
                 onChange={handleChange}
-                disabled={!!editingId} // 🔥 only disable in edit
-                placeholder={editingId ? "Cannot be changed" : ""}
                 required
               />
 
@@ -388,8 +395,6 @@ const Students = () => {
                 name="rfid_uid"
                 value={form.rfid_uid}
                 onChange={handleChange}
-                disabled={!!editingId}
-                placeholder={editingId ? "Fixed after creation" : ""}
                 required
               />
 
@@ -400,33 +405,37 @@ const Students = () => {
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                disabled={!!editingId}
-                placeholder={editingId ? "Login ID cannot be changed" : ""}
                 required
               />
 
-              {/* PASSWORD */}
-              <label>Password</label>
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder={editingId ? "Leave blank to keep same" : ""}
-                required={!editingId}
-              />
-
-              {/* INFO (ONLY EDIT MODE) */}
-              {editingId && (
-                <div className="info-box">
-                  Only name and password can be updated
-                </div>
+              {/* PASSWORD (ONLY ADD MODE) */}
+              {!editingId && (
+                <>
+                  <label>Password</label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={form.password}
+                    onChange={handleChange}
+                    required
+                  />
+                </>
               )}
+
+
 
               {/* ACTION BUTTONS */}
               <div className="modal-actions">
-                <button type="submit" className="btn-primary">
-                  {editingId ? "Update Student" : "Add Student"}
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={submitting}
+                >
+                  {submitting
+                    ? "Saving..."
+                    : editingId
+                    ? "Update Student"
+                    : "Add Student"}
                 </button>
 
                 <button
@@ -434,7 +443,7 @@ const Students = () => {
                   className="cancel-btn"
                   onClick={() => {
                     setShowModal(false);
-                    setEditingId(null); // 🔥 reset
+                    setEditingId(null);
                   }}
                 >
                   Cancel
