@@ -27,27 +27,58 @@ const scanRfid = async (req, res) => {
     }
 
     const date = getDateString();
-    const existing = await Attendance.findOne({ studentId: student._id, date });
-
-    if (existing) {
-      return res.json({
-        message: "Attendance already marked for today",
-        attendance: existing,
-        student,
-      });
+    const lastRecord = await Attendance.findOne({
+      studentId: student._id,
+      date,
+    }).sort({ timestamp: -1 });
+    
+    const now = new Date();
+    
+    // ⛔ Double scan protection (5 sec)
+    if (lastRecord && (now - new Date(lastRecord.timestamp)) < 5000) {
+      return res.json({ message: "WAIT" });
     }
-
+    
+    let type = "IN";
+    
+    // 👉 Decide IN / OUT
+    if (lastRecord && lastRecord.type === "IN") {
+      type = "OUT";
+    }
+    
     const attendance = await Attendance.create({
       studentId: student._id,
-      timestamp: new Date(),
+      timestamp: now,
       date,
+      type,
     });
-
+    
     return res.status(201).json({
-      message: "Attendance marked",
+      message: type === "IN" ? "ENTRY" : "EXIT",
       attendance,
       student,
     });
+    // const existing = await Attendance.findOne({ studentId: student._id, date });
+
+    // if (existing) {
+    //   return res.json({
+    //     message: "Attendance already marked for today",
+    //     attendance: existing,
+    //     student,
+    //   });
+    // }
+
+    // const attendance = await Attendance.create({
+    //   studentId: student._id,
+    //   timestamp: new Date(),
+    //   date,
+    // });
+
+    // return res.status(201).json({
+    //   message: "Attendance marked",
+    //   attendance,
+    //   student,
+    // });
   } catch (error) {
     return res.status(500).json({ message: "Scan handling failed", error: error.message });
   }
@@ -60,7 +91,7 @@ const getAttendance = async (req, res) => {
     const { date, type, studentId } = req.query;
     const filter = {};
 
-    let baseDate = date ? dayjs(date) : dayjs(); // 🔥 key line
+    let baseDate = date ? dayjs(date) : dayjs();
 
     // 🔥 APPLY FILTER
     if (type) {
@@ -72,7 +103,7 @@ const getAttendance = async (req, res) => {
       }
 
       else if (type === "week") {
-        start = baseDate.startOf("isoWeek"); // Monday start
+        start = baseDate.startOf("isoWeek");
         end = baseDate.endOf("isoWeek");
       }
 
@@ -92,9 +123,36 @@ const getAttendance = async (req, res) => {
       filter.studentId = studentId;
     }
 
-    const attendance = await Attendance.find(filter)
-      .populate("studentId", "name rollNumber rfid_uid")
-      .sort({ timestamp: -1 });
+    // 🔥 MAIN FIX (GROUPING)
+    const attendance = await Attendance.aggregate([
+      {
+        $match: filter
+      },
+      {
+        $sort: { timestamp: 1 } // oldest first
+      },
+      {
+        $group: {
+          _id: {
+            studentId: "$studentId",
+            date: "$date"
+          },
+          record: { $first: "$$ROOT" } // take first IN
+        }
+      },
+      {
+        $replaceRoot: { newRoot: "$record" }
+      },
+      {
+        $sort: { timestamp: -1 }
+      }
+    ]);
+
+    // 🔥 POPULATE (important after aggregate)
+    await Student.populate(attendance, {
+      path: "studentId",
+      select: "name rollNumber rfid_uid"
+    });
 
     res.json(attendance);
 
@@ -189,33 +247,47 @@ const getAttendanceAnalytics = async (_req, res) => {
       Attendance.find().sort({ timestamp: 1 }),
     ]);
 
-    // ✅ SAFE unique dates
+    // ✅ helper (VERY IMPORTANT)
+    const isPresent = (item) =>
+      item.type === "IN" || item.type === undefined;
+
+    // ✅ UNIQUE DATES
     const uniqueDates = [
       ...new Set(attendance.map((item) => item.date).filter(Boolean)),
     ].sort();
 
     const totalDays = uniqueDates.length || 1;
 
-    // ✅ SAFE daily attendance
-    const attendanceByDate = uniqueDates.map((d) => ({
-      date: d,
-      count: attendance.filter(
-        (item) => item.date && item.date === d
-      ).length,
-    }));
+    // ✅ DAILY COUNT (unique student per day)
+    const attendanceByDate = uniqueDates.map((d) => {
+      const uniqueStudents = new Set();
 
-    // ✅ SAFE percentage calculation
+      attendance.forEach((item) => {
+        if (item.date === d && isPresent(item)) {
+          uniqueStudents.add(item.studentId.toString());
+        }
+      });
+
+      return {
+        date: d,
+        count: uniqueStudents.size,
+      };
+    });
+
+    // ✅ PERCENTAGE (unique attendance per student)
     const attendancePercentageByStudent = students.map((student) => {
-      const presentDays = attendance.filter((item) => {
-        if (!item.studentId) return false;
+      const uniqueDays = new Set();
 
-        const id =
-          typeof item.studentId === "object"
-            ? item.studentId._id?.toString()
-            : item.studentId.toString();
+      attendance.forEach((item) => {
+        if (
+          isPresent(item) &&
+          item.studentId.toString() === student._id.toString()
+        ) {
+          uniqueDays.add(item.date);
+        }
+      });
 
-        return id === student._id.toString();
-      }).length;
+      const presentDays = uniqueDays.size;
 
       return {
         studentId: student._id,
@@ -225,10 +297,10 @@ const getAttendanceAnalytics = async (_req, res) => {
       };
     });
 
-    // ✅ SAFE monthly trend
+    // ✅ MONTHLY TREND
     const monthlyMap = {};
     attendance.forEach((item) => {
-      if (item.date) {
+      if (item.date && isPresent(item)) {
         const month = item.date.slice(0, 7);
         monthlyMap[month] = (monthlyMap[month] || 0) + 1;
       }
@@ -252,8 +324,45 @@ const getAttendanceAnalytics = async (_req, res) => {
     });
   }
 };
+const getAttendanceSessions = async (req, res) => {
+  try {
+    const { studentId, date } = req.query;
 
+    if (!studentId || !date) {
+      return res.status(400).json({ message: "studentId and date required" });
+    }
 
+    const records = await Attendance.find({ studentId, date })
+      .sort({ timestamp: 1 });
+
+    let sessions = [];
+    let lastIn = null;
+
+    records.forEach((rec) => {
+      if (rec.type === "IN") {
+        lastIn = rec.timestamp;
+      } else if (rec.type === "OUT" && lastIn) {
+        sessions.push({
+          in: lastIn,
+          out: rec.timestamp,
+        });
+        lastIn = null;
+      }
+    });
+
+    return res.json({
+      studentId,
+      date,
+      sessions,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch sessions",
+      error: error.message,
+    });
+  }
+};
 
 const exportAttendance = async (req, res) => {
   try {
@@ -286,22 +395,51 @@ const exportAttendance = async (req, res) => {
       };
     }
 
-    const rows = await Attendance.find(filter)
-      .populate("studentId", "name rollNumber rfid_uid")
-      .sort({ timestamp: -1 });
+    // 🔥 FETCH DATA
+    const [students, rows] = await Promise.all([
+      Student.find().sort({ name: 1 }),
+      Attendance.find(filter).sort({ timestamp: 1 }),
+    ]);
 
-    const csvRows = rows.map((item) => ({
-      name: item.studentId?.name || "",
-      rollNumber: item.studentId?.rollNumber || "",
-      rfid_uid: item.studentId?.rfid_uid || "",
-      date: item.date,
-      time: dayjs(item.timestamp).format("HH:mm:ss"), // 🔥 better format
-    }));
+    // ✅ helper (old + new data support)
+    const isPresent = (item) =>
+      item.type === "IN" || item.type === undefined;
 
-    const parser = new Parser({
-      fields: ["name", "rollNumber", "rfid_uid", "date", "time"],
+    // 🔥 GET UNIQUE DATES
+    const uniqueDates = [
+      ...new Set(rows.map((item) => item.date).filter(Boolean)),
+    ].sort();
+
+    // 🔥 CREATE MAP (student + date)
+    const attendanceMap = new Map();
+
+    rows.forEach((item) => {
+      if (!isPresent(item)) return;
+
+      const key = item.studentId.toString() + "_" + item.date;
+      attendanceMap.set(key, true);
     });
 
+    // 🔥 BUILD FINAL CSV ROWS
+    const csvRows = students.map((student) => {
+      const row = {
+        name: student.name || "",
+        rollNumber: student.rollNumber || "",
+      };
+
+      uniqueDates.forEach((d) => {
+        const key = student._id.toString() + "_" + d;
+
+        row[d] = attendanceMap.has(key) ? "Present" : "Absent";
+      });
+
+      return row;
+    });
+
+    // 🔥 HEADERS
+    const fields = ["name", "rollNumber", ...uniqueDates];
+
+    const parser = new Parser({ fields });
     const csv = parser.parse(csvRows);
 
     res.header("Content-Type", "text/csv");
@@ -316,6 +454,47 @@ const exportAttendance = async (req, res) => {
     });
   }
 };
+
+const getAttendanceLogs = async (req, res) => {
+  try {
+    const { date, type, studentId } = req.query;
+
+    const filter = {};
+
+    // 🔥 Date filter
+    if (date) {
+      const start = dayjs(date).startOf("day").toDate();
+      const end = dayjs(date).endOf("day").toDate();
+
+      filter.timestamp = {
+        $gte: start,
+        $lte: end,
+      };
+    }
+
+    // 🔥 Type filter (IN / OUT)
+    if (type && type !== "all") {
+      filter.type = type;
+    }
+
+    // 🔥 Student filter
+    if (studentId) {
+      filter.studentId = studentId;
+    }
+
+    const logs = await Attendance.find(filter)
+      .populate("studentId", "name rollNumber rfid_uid")
+      .sort({ timestamp: -1 });
+
+    res.json(logs);
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch logs",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   scanRfid,
   getAttendance,
@@ -323,4 +502,6 @@ module.exports = {
   getMyAttendance,
   getAttendanceAnalytics,
   exportAttendance,
+  getAttendanceSessions,
+  getAttendanceLogs
 };

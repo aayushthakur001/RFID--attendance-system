@@ -13,7 +13,7 @@ import {
 } from "chart.js";
 import api from "../../api/client";
 import StudentNavbar from "../../components/navbar/StudentNavbar";
-import toast from "react-hot-toast"; // 🔥 added
+import toast from "react-hot-toast";
 
 ChartJS.register(
   ArcElement,
@@ -30,6 +30,7 @@ const StudentDashboard = () => {
   const [attendance, setAttendance] = useState([]);
   const [totalWorkingDays, setTotalWorkingDays] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -50,29 +51,37 @@ const StudentDashboard = () => {
     load();
   }, []);
 
-  // 🔥 Percentage
+  // ✅ UNIQUE DATES (MAIN FIX)
+  const uniqueDates = useMemo(() => {
+    const set = new Set();
+
+    attendance.forEach((item) => {
+      if (item.date) {
+        set.add(item.date);
+      }
+    });
+
+    return Array.from(set).sort().reverse();
+  }, [attendance]);
+
+  // 🔥 Percentage FIXED
   const percentage = useMemo(() => {
     if (!totalWorkingDays) return 0;
-    return Number(((attendance.length / totalWorkingDays) * 100).toFixed(2));
-  }, [attendance.length, totalWorkingDays]);
+    return Number(((uniqueDates.length / totalWorkingDays) * 100).toFixed(2));
+  }, [uniqueDates.length, totalWorkingDays]);
 
-  const absentDays = Math.max(totalWorkingDays - attendance.length, 0);
+  const absentDays = Math.max(totalWorkingDays - uniqueDates.length, 0);
 
-  // 🔥 Chart Data
+  // 🔥 Chart FIXED
   const distributionData = {
     labels: ["Present", "Absent"],
     datasets: [
       {
-        data: [attendance.length, absentDays],
-
-        backgroundColor: [
-          "#22c55e", // modern green
-          "#ef4444", // modern red
-        ],
-
+        data: [uniqueDates.length, absentDays], // ✅ FIX
+        backgroundColor: ["#22c55e", "#ef4444"],
         borderWidth: 0,
         hoverOffset: 12,
-        cutout: "70%", // 🔥 makes it modern ring
+        cutout: "70%",
       },
     ],
   };
@@ -85,25 +94,19 @@ const StudentDashboard = () => {
           usePointStyle: true,
           pointStyle: "circle",
           padding: 20,
-          font: {
-            size: 12,
-          },
+          font: { size: 12 },
         },
       },
     },
-
-    layout: {
-      padding: 10,
-    },
+    layout: { padding: 10 },
   };
 
   const monthlyTrendData = useMemo(() => {
     const monthlyMap = {};
-    attendance.forEach((item) => {
-      if (item.date) {
-        const month = item.date.slice(0, 7);
-        monthlyMap[month] = (monthlyMap[month] || 0) + 1;
-      }
+
+    uniqueDates.forEach((date) => {
+      const month = date.slice(0, 7);
+      monthlyMap[month] = (monthlyMap[month] || 0) + 1;
     });
 
     const labels = Object.keys(monthlyMap).sort();
@@ -121,43 +124,33 @@ const StudentDashboard = () => {
         },
       ],
     };
-  }, [attendance]);
+  }, [uniqueDates]);
+
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // 🔥 Attendance List
-  const [showAll, setShowAll] = useState(false);
-
-  const sortedAttendance = useMemo(() => {
-    return [...attendance].sort(
-      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-    );
-  }, [attendance]);
-
+  // ✅ TABLE FIX (NO DUPLICATES)
   const visibleAttendance = showAll
-    ? sortedAttendance
-    : sortedAttendance.slice(0, 5);
+    ? uniqueDates
+    : uniqueDates.slice(0, 5);
 
   return (
     <>
       <StudentNavbar onOpenProfile={() => setProfileOpen(true)} />
 
       <main className="container student-dashboard">
-        {/* 🔥 LOADING */}
         {loading ? (
           <p className="empty-state">Loading dashboard...</p>
         ) : (
           <>
-            {/* 🔥 WELCOME CARD (FIXED) */}
+            {/* 🔥 WELCOME CARD (NO CHANGE) */}
             <div className="ui-card student-welcome">
               <div className="welcome-left">
-                {/* <div className="avatar">{student?.name?.charAt(0)}</div> */}
-
                 <div>
                   <h2>Welcome, {student?.name}</h2>
                   <p className="sub-text">Roll No: {student?.rollNumber}</p>
 
                   <p className="summary-text">
-                    You attended <strong>{attendance.length}</strong> out of{" "}
+                    You attended <strong>{uniqueDates.length}</strong> out of{" "}
                     <strong>{totalWorkingDays}</strong> days
                   </p>
                 </div>
@@ -169,7 +162,7 @@ const StudentDashboard = () => {
               </div>
             </div>
 
-            {/* 🔥 STATS */}
+            {/* 🔥 STATS (FIXED VALUES ONLY) */}
             <div className="stats-grid">
               <div className="ui-kpi kpi-purple">
                 <p>Total Days</p>
@@ -178,7 +171,7 @@ const StudentDashboard = () => {
 
               <div className="ui-kpi kpi-green">
                 <p>Present</p>
-                <h2>{attendance.length}</h2>
+                <h2>{uniqueDates.length}</h2>
               </div>
 
               <div className="ui-kpi kpi-orange">
@@ -187,7 +180,7 @@ const StudentDashboard = () => {
               </div>
             </div>
 
-            {/* 🔥 CHARTS */}
+            {/* 🔥 CHARTS (NO CSS CHANGE) */}
             <div className="charts-grid">
               <div className="ui-card ui-card-chart student-chart-card">
                 <h3>📊 Attendance Distribution</h3>
@@ -209,7 +202,7 @@ const StudentDashboard = () => {
               </div>
             </div>
 
-            {/* 🔥 TABLE */}
+            {/* 🔥 TABLE (ONLY LOGIC FIXED) */}
             <div className="ui-card">
               <div className="toolbar">
                 <h3>📋 Attendance History</h3>
@@ -230,16 +223,14 @@ const StudentDashboard = () => {
                     <thead>
                       <tr>
                         <th>Date</th>
-                        <th>Time</th>
                         <th>Status</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {visibleAttendance.map((item) => (
-                        <tr key={item._id}>
-                          <td>{item.date}</td>
-                          <td>{dayjs(item.timestamp).format("HH:mm:ss")}</td>
+                      {visibleAttendance.map((date) => (
+                        <tr key={date}>
+                          <td>{date}</td>
                           <td>
                             <span className="badge-present">Present</span>
                           </td>
@@ -256,4 +247,5 @@ const StudentDashboard = () => {
     </>
   );
 };
+
 export default StudentDashboard;

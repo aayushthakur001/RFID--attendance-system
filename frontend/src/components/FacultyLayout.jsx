@@ -4,50 +4,52 @@ import FacultyNavbar from "./navbar/FacultyNavbar";
 const FacultyLayout = () => {
   return (
     <div className="layout">
-
       {/* ===== SIDEBAR ===== */}
       <aside className="sidebar">
-
         {/* LOGO */}
         <div className="logo">RFID</div>
 
         {/* NAVIGATION */}
         <nav className="sidebar-nav">
-
           <NavLink
             to="/faculty/dashboard"
-            className={({ isActive }) => isActive ? "active" : ""}
+            className={({ isActive }) => (isActive ? "active" : "")}
           >
             <span>📊</span> Dashboard
           </NavLink>
 
           <NavLink
             to="/faculty/students"
-            className={({ isActive }) => isActive ? "active" : ""}
+            className={({ isActive }) => (isActive ? "active" : "")}
           >
             <span>👥</span> Students
           </NavLink>
 
           <NavLink
             to="/faculty/attendance"
-            className={({ isActive }) => isActive ? "active" : ""}
+            className={({ isActive }) => (isActive ? "active" : "")}
           >
             <span>📅</span> Attendance
           </NavLink>
 
           <NavLink
+            to="/faculty/logs"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            <span>📄</span> Logs
+          </NavLink>
+
+          <NavLink
             to="/faculty/analytics"
-            className={({ isActive }) => isActive ? "active" : ""}
+            className={({ isActive }) => (isActive ? "active" : "")}
           >
             <span>📈</span> Analytics
           </NavLink>
-
         </nav>
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}
       <div className="main-content">
-
         {/* TOPBAR */}
         <FacultyNavbar />
 
@@ -55,9 +57,7 @@ const FacultyLayout = () => {
         <div className="page-content">
           <Outlet />
         </div>
-
       </div>
-
     </div>
   );
 };

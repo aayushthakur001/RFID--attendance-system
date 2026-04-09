@@ -6,6 +6,7 @@ import Dashboard from "./pages/faculty/Dashboard";
 import Students from "./pages/faculty/Students";
 import Attendance from "./pages/faculty/Attendance";
 import Analytics from "./pages/faculty/Analytics";
+import Logs from "./pages/faculty/Logs";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
 import { setAuthToken } from "./api/client";
@@ -79,6 +80,7 @@ function App() {
           <Route path="students" element={<Students />} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="logs" element={<Logs />} />
         </Route>
 
         {/* REDIRECT */}

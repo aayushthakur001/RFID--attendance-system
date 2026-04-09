@@ -18,10 +18,17 @@ const attendanceSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    type: {
+      type: String,
+      enum: ["IN", "OUT"],
+      required: true,
+    }
   },
   { timestamps: true }
 );
 
-attendanceSchema.index({ studentId: 1, date: 1 }, { unique: true });
+// attendanceSchema.index({ studentId: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ studentId: 1, date: 1 });
+
 
 module.exports = mongoose.model("Attendance", attendanceSchema, "attendance");

@@ -1539,3 +1539,45 @@ a {
   transform: scale(1.08);
   box-shadow: 0 6px 20px rgba(99,102,241,0.4);
 }
+
+.badge-in {
+  background: #22c55e;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.badge-out {
+  background: #ef4444;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+/* 🔥 ONLY affect Logs page KPI */
+#logs-kpi .ui-kpi {
+  padding: 14px 18px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* 🔥 KEY FIX */
+}
+
+#logs-kpi .ui-kpi p {
+  margin-bottom: 4px !important;
+}
+
+#logs-kpi .ui-kpi h2 {
+  margin: 2px 0 !important;
+}
+
+#logs-kpi .ui-kpi h3 {
+  margin: 2px 0 !important;
+}
+
+#logs-kpi .last-name {
+  margin-bottom: 2px !important;
+}
+
+#logs-kpi .time-text {
+  margin-top: 2px !important;
+}
