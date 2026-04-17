@@ -272,11 +272,10 @@ Upload code
 
 ## 🧑‍💻 Author
 
-**Gaurav Parmar**
-https://github.com/parmar-gauravrobot
 **Ayush Thakur**
 https://github.com/aayushthakur001/
-
+**Gaurav Parmar**
+https://github.com/parmar-gauravrobot
 ---
 
 ## ⭐ Support
